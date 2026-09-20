@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { toast } from "sonner";
 import type { BatchSummary, LeadRecord } from "@/lib/schemas/lead";
-import type { ExtractionEvent } from "@/lib/schemas/extraction";
+import type { CardStage, ExtractionEvent } from "@/lib/schemas/extraction";
 
 export type CardStatus =
   | "waiting"
@@ -19,6 +19,8 @@ export interface SelectedFile {
   file: File;
   previewUrl: string;
   status: CardStatus;
+  /** Real pipeline stage reported by the server while status is "processing". */
+  stage?: CardStage;
   reason?: string;
 }
 
@@ -34,6 +36,35 @@ function validateClientSide(file: File): { ok: boolean; reason?: string } {
     return { ok: false, reason: `Exceeds ${MAX_CLIENT_SIZE_MB}MB limit` };
   }
   return { ok: true };
+}
+
+/** Reads a text/event-stream response, calling onEvent for each JSON `data:` line. */
+async function readEvents(
+  response: Response,
+  onEvent: (event: ExtractionEvent) => void,
+): Promise<void> {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith("data:")) continue;
+      const jsonText = line.slice(5).trim();
+      if (!jsonText) continue;
+      try {
+        onEvent(JSON.parse(jsonText) as ExtractionEvent);
+      } catch {
+        // ignore a malformed line
+      }
+    }
+  }
 }
 
 export function useExtraction() {
@@ -144,62 +175,42 @@ export function useExtraction() {
         throw new Error(body?.error ?? "Extraction request failed");
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
       const fileIndexToId = readyFiles.map((f) => f.id);
       let sawDone = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith("data:")) continue;
-          const jsonText = line.slice(5).trim();
-          if (!jsonText) continue;
-
-          let event: ExtractionEvent;
-          try {
-            event = JSON.parse(jsonText);
-          } catch {
-            continue;
-          }
-
-          if (event.type === "card_completed" || event.type === "card_duplicate") {
-            const id = fileIndexToId[event.index];
-            setSelected((prev) =>
-              prev.map((f) =>
-                f.id === id ? { ...f, status: event.record.status } : f,
-              ),
-            );
-            setProcessedCount((c) => c + 1);
-          } else if (event.type === "card_failed") {
-            const id = fileIndexToId[event.index];
-            setSelected((prev) =>
-              prev.map((f) =>
-                f.id === id
-                  ? { ...f, status: "failed", reason: event.reason }
-                  : f,
-              ),
-            );
-            setProcessedCount((c) => c + 1);
-          } else if (event.type === "done") {
-            sawDone = true;
-            setRecords(event.records);
-            setSummary(event.summary);
-          } else if (event.type === "error") {
-            sawDone = true;
-            setError(event.message);
-          }
+      await readEvents(response, (event) => {
+        if (event.type === "card_stage") {
+          const id = fileIndexToId[event.index];
+          setSelected((prev) =>
+            prev.map((f) => (f.id === id ? { ...f, stage: event.stage } : f)),
+          );
+        } else if (event.type === "card_completed" || event.type === "card_duplicate") {
+          const id = fileIndexToId[event.index];
+          setSelected((prev) =>
+            prev.map((f) =>
+              f.id === id ? { ...f, status: event.record.status, stage: undefined } : f,
+            ),
+          );
+          setProcessedCount((c) => c + 1);
+        } else if (event.type === "card_failed") {
+          const id = fileIndexToId[event.index];
+          setSelected((prev) =>
+            prev.map((f) =>
+              f.id === id
+                ? { ...f, status: "failed", stage: undefined, reason: event.reason }
+                : f,
+            ),
+          );
+          setProcessedCount((c) => c + 1);
+        } else if (event.type === "done") {
+          sawDone = true;
+          setRecords(event.records);
+          setSummary(event.summary);
+        } else if (event.type === "error") {
+          sawDone = true;
+          setError(event.message);
         }
-      }
+      });
       if (!sawDone) {
         setError("The connection ended before extraction finished. Please try again.");
       }
@@ -214,7 +225,54 @@ export function useExtraction() {
     }
   }, [readyFiles]);
 
+  const [retryingIds, setRetryingIds] = useState<ReadonlySet<string>>(new Set());
+
+  /** Re-runs extraction for one already-processed card and swaps in the new record. */
+  const retryCard = useCallback(
+    async (recordId: string) => {
+      const index = records?.findIndex((r) => r.id === recordId) ?? -1;
+      const source = index >= 0 ? processedFiles[index] : undefined;
+      if (!source) {
+        toast.error("The original image is no longer available to retry.");
+        return;
+      }
+      setRetryingIds((prev) => new Set(prev).add(recordId));
+      try {
+        const formData = new FormData();
+        formData.append("files", source.file, source.file.name);
+        const response = await fetch("/api/extract", { method: "POST", body: formData });
+        if (!response.ok || !response.body) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error ?? "Retry request failed");
+        }
+        const result: { record: LeadRecord | null } = { record: null };
+        await readEvents(response, (event) => {
+          if (event.type === "done") result.record = event.records[0] ?? null;
+        });
+        const fresh = result.record;
+        if (!fresh) throw new Error("The connection ended before the retry finished.");
+        setRecords((prev) => (prev ? prev.map((r) => (r.id === recordId ? fresh : r)) : prev));
+        if (fresh.status === "failed") {
+          toast.error(fresh.failureReason ?? "Extraction failed again.");
+        } else {
+          toast.success(`Re-extracted ${source.file.name}`);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Retry failed");
+      } finally {
+        setRetryingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(recordId);
+          return next;
+        });
+      }
+    },
+    [records, processedFiles],
+  );
+
   return {
+    retryCard,
+    retryingIds,
     selected,
     readyFiles,
     addFiles,

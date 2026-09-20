@@ -5,6 +5,7 @@ import { Inbox } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { UploadZone } from "@/components/upload/upload-zone";
 import { FileList } from "@/components/upload/file-list";
+import { SampleCards } from "@/components/upload/sample-cards";
 import { Button } from "@/components/ui/button";
 import { ProcessingProgress } from "@/components/leads/processing-progress";
 import { ResultsSummary } from "@/components/leads/results-summary";
@@ -32,6 +33,8 @@ export default function LeadsPage() {
     summary: initialSummary,
     error,
     processedFiles,
+    retryCard,
+    retryingIds,
   } = useExtraction();
 
   // Counts always reflect the current (possibly hand-corrected) records.
@@ -77,6 +80,7 @@ export default function LeadsPage() {
         {showUpload && (
           <>
             <UploadZone onFilesAdded={addFiles} />
+            <SampleCards onAdd={addFiles} />
             <FileList files={selected} onRemove={removeFile} />
             {selected.length > 0 && (
               <div className="flex justify-end gap-2">
@@ -115,6 +119,8 @@ export default function LeadsPage() {
                 records={records}
                 previewUrls={previewUrls}
                 onUpdateLead={handleUpdateLead}
+                onRetry={retryCard}
+                retryingIds={retryingIds}
               />
             ) : (
               <EmptyState

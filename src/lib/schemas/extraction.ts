@@ -1,9 +1,18 @@
 import { z } from "zod";
 import { BatchSummarySchema, LeadRecordSchema } from "./lead";
 
+/**
+ * Real per-card pipeline stages, emitted when the server actually enters them:
+ * preparing = validate + normalize image, reading = the Qwen model call,
+ * validating = JSON check + normalization.
+ */
+export const CARD_STAGES = ["preparing", "reading", "validating"] as const;
+export type CardStage = (typeof CARD_STAGES)[number];
+
 /** Server-Sent Event payloads streamed from POST /api/extract. */
 export type ExtractionEvent =
   | { type: "card_started"; index: number; fileName: string; total: number }
+  | { type: "card_stage"; index: number; stage: CardStage }
   | {
       type: "card_completed";
       index: number;

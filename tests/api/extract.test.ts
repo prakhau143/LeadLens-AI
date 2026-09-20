@@ -48,6 +48,40 @@ describe("POST /api/extract", () => {
     expect(response.status).toBe(400);
   });
 
+  it("emits real stage events in order and attaches timings to the record", async () => {
+    mockedExtractLead.mockImplementation(async (_buf, timings) => {
+      if (timings) {
+        timings.modelRequestMs = 1234;
+        timings.modelInferenceMs = 987;
+        timings.parsingMs = 1;
+      }
+      return {
+        first_name: "A", last_name: "B", job_title: null, company: null,
+        location: null, phone: null, email: null,
+      };
+    });
+    const formData = new FormData();
+    formData.append("files", await makePngFile("one.png"));
+    const response = await POST(
+      new Request("http://localhost/api/extract", { method: "POST", body: formData }),
+    );
+    const events = parseSseEvents(await response.text());
+
+    const kinds = events
+      .filter((e) => e.type === "card_started" || e.type === "card_stage" || e.type === "card_completed")
+      .map((e) => (e.type === "card_stage" ? `stage:${e.stage}` : e.type));
+    expect(kinds).toEqual([
+      "card_started", "stage:preparing", "stage:reading", "stage:validating", "card_completed",
+    ]);
+
+    const completed = events.find((e) => e.type === "card_completed");
+    expect(completed.record.timings).toMatchObject({
+      modelRequestMs: 1234, modelInferenceMs: 987, parsingMs: 1,
+    });
+    expect(typeof completed.record.timings.imagePreparationMs).toBe("number");
+    expect(typeof completed.record.timings.totalMs).toBe("number");
+  });
+
   it("streams per-card progress and still completes when one card fails", async () => {
     let callCount = 0;
     mockedExtractLead.mockImplementation(async () => {

@@ -28,12 +28,24 @@ export const LeadStatusSchema = z.enum(LEAD_STATUSES);
 
 export type LeadStatus = z.infer<typeof LeadStatusSchema>;
 
+/** Measured server-side per card; every field is optional (providers differ). */
+export const ProcessingTimingsSchema = z.object({
+  imagePreparationMs: z.number().optional(),
+  modelRequestMs: z.number().optional(),
+  modelInferenceMs: z.number().optional(),
+  parsingMs: z.number().optional(),
+  totalMs: z.number().optional(),
+});
+
+export type ProcessingTimings = z.infer<typeof ProcessingTimingsSchema>;
+
 export const LeadRecordSchema = z.object({
   id: z.string(),
   sourceFileName: z.string(),
   status: LeadStatusSchema,
   lead: LeadSchema,
   failureReason: z.string().nullable().default(null),
+  timings: ProcessingTimingsSchema.optional(),
 });
 
 export type LeadRecord = z.infer<typeof LeadRecordSchema>;

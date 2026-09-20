@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Search } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Loader2, Pencil, RotateCw, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -47,10 +47,15 @@ export function LeadTable({
   records,
   previewUrls,
   onUpdateLead,
+  onRetry,
+  retryingIds,
 }: {
   records: LeadRecord[];
   previewUrls: Record<string, string | undefined>;
   onUpdateLead: (id: string, lead: Lead) => void;
+  /** Present only where the original image is still in memory (not History). */
+  onRetry?: (id: string) => void;
+  retryingIds?: ReadonlySet<string>;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
@@ -67,8 +72,11 @@ export function LeadTable({
         const haystack = [
           r.lead.first_name,
           r.lead.last_name,
+          r.lead.job_title,
           r.lead.company,
           r.lead.email,
+          r.lead.phone,
+          r.lead.location,
         ]
           .filter(Boolean)
           .join(" ")
@@ -182,21 +190,71 @@ export function LeadTable({
                 {record.status === "failed" || record.status === "duplicate" ? (
                   <TableCell
                     colSpan={LEAD_TABLE_COLUMNS.length}
-                    className={cn(
-                      "whitespace-normal",
-                      record.status === "failed"
-                        ? "text-destructive"
-                        : "text-muted-foreground",
-                    )}
+                    className="whitespace-normal"
                   >
-                    <span className="font-medium">{record.sourceFileName}</span>
-                    {" — "}
-                    {record.status === "failed"
-                      ? (record.failureReason ?? "Extraction failed")
-                      : "Duplicate of an earlier image in this batch (skipped)"}
-                    <span className="ml-1 text-muted-foreground">
-                      Click to enter details manually.
-                    </span>
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{record.sourceFileName}</p>
+                        <p
+                          className={cn(
+                            "text-sm",
+                            record.status === "failed" ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {record.status === "failed"
+                            ? `Extraction needs review — ${record.failureReason ?? "the card could not be read"}`
+                            : "Duplicate of an earlier image in this batch (skipped)"}
+                        </p>
+                      </div>
+                      <div
+                        className="flex flex-wrap gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {onRetry && previewUrls[record.id] && record.status === "failed" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={retryingIds?.has(record.id)}
+                            onClick={() => onRetry(record.id)}
+                          >
+                            {retryingIds?.has(record.id) ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <RotateCw />
+                            )}
+                            Retry
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingId(record.id)}
+                        >
+                          <Pencil />
+                          Edit manually
+                        </Button>
+                        {previewUrls[record.id] && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            nativeButton={false}
+                            render={
+                              <a
+                                href={previewUrls[record.id]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              />
+                            }
+                          >
+                            <ExternalLink />
+                            View image
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                 ) : (
                   LEAD_TABLE_COLUMNS.map((col) => (

@@ -19,6 +19,14 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Labels for the real server stages; "queued" = accepted but not started yet. */
+const STAGE_LABELS = {
+  queued: "Queued",
+  preparing: "Preparing image…",
+  reading: "Reading card…",
+  validating: "Validating result…",
+} as const;
+
 function StatusIndicator({ file }: { file: SelectedFile }) {
   if (file.reason) {
     return (
@@ -31,7 +39,7 @@ function StatusIndicator({ file }: { file: SelectedFile }) {
     case "processing":
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> Analyzing...
+          <Loader2 className="size-3.5 animate-spin" /> {STAGE_LABELS[file.stage ?? "queued"]}
         </span>
       );
     case "extracted":

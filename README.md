@@ -4,9 +4,29 @@ Turn business cards into structured leads with AI. Bulk-upload business-card
 images, extract structured fields with a Qwen vision-language model (VLM), review
 and correct the results, and export an Excel workbook.
 
-> **Read [Verification status](#verification-status) first.** It states exactly
-> what has been tested and what has not. Qwen3-VL currently runs on a **Hugging Face
-> ZeroGPU Space**, which is *not* AWS; it has **not** been deployed on AWS.
+## Live demo
+
+**https://leadlens-ai-three.vercel.app**
+
+| Layer | What runs it |
+| --- | --- |
+| Frontend + API | Next.js 16 on **Vercel** |
+| AI inference | `Qwen/Qwen3-VL-4B-Instruct` on a **Hugging Face ZeroGPU Space** (Gradio) — [`prakhu23/leadlens-qwen3-vl`](https://huggingface.co/spaces/prakhu23/leadlens-qwen3-vl) |
+| Source | https://github.com/prakhau143/LeadLens-AI |
+
+The browser only ever talks to the Vercel app. The Vercel server calls the Space;
+no model credential exists in browser code.
+
+> **Deployment note — AWS was not used.** The assignment asked for Qwen on AWS or an
+> equivalent environment. AWS was not pursued during implementation (account
+> payment/activation friction), and **nothing in this project runs on AWS**. Qwen is
+> served from a Hugging Face ZeroGPU Space instead. Whether that counts as an
+> "equivalent environment" is for the reviewer to judge. The inference layer is
+> isolated behind a provider switch (`src/lib/config/model.ts`), so pointing it at an
+> AWS/vLLM endpoint later needs only env vars (`QWEN_BASE_URL`, `QWEN_MODEL`) — the
+> AWS files in `docker/` and `docs/` are an **unexecuted** design.
+>
+> **Read [Verification status](#verification-status) for exactly what was tested.**
 
 ## Overview
 
@@ -18,7 +38,15 @@ the card comes back `null` rather than guessed, and the UI flags those leads
 ## Features
 
 - Drag-and-drop bulk upload (JPG / PNG / WEBP, up to 50 images per batch)
-- Live per-card progress over Server-Sent Events; one bad card never fails a batch
+- Live per-card progress over Server-Sent Events; one bad card never fails a batch.
+  Stages (*Preparing image → Reading card & extracting fields → Validating*) are
+  emitted by the server as it actually enters them — nothing is simulated
+- Failed cards say "Extraction needs review" and offer **Retry**, **Edit manually**
+  and **View image** (Retry needs the original image, so it works in the current
+  session, not from History)
+- "Try a sample" cards, so the app can be exercised without an image to hand
+- Lead drawer: details view with an *extraction completeness* count (fields found,
+  **not** a model confidence score), expandable processing timings, then Edit
 - Qwen VLM extraction with schema validation, tolerant JSON recovery, and one retry
 - In-batch duplicate-image detection (exact SHA-256 of the normalized image)
 - Editable, searchable, sortable, filterable lead table; side-panel editor with the
@@ -164,7 +192,7 @@ npm run dev
 | `QWEN_BASE_URL` | For self-hosted | OpenAI-compatible base URL, e.g. `http://localhost:11434/v1` |
 | `QWEN_MODEL` | With `QWEN_BASE_URL` | e.g. `qwen3-vl:4b` (Ollama) / `Qwen/Qwen3-VL-4B-Instruct` (vLLM). No default — the app refuses to guess. |
 | `HF_SPACE_ID` | For Space mode | e.g. `prakhu23/leadlens-qwen3-vl`. Server-side only. |
-| `HF_TOKEN` | Optional | Only for a private Space or to charge a specific account's quota. Server-side only, never `NEXT_PUBLIC_`. |
+| `HF_TOKEN` | Optional | Server-side only, never `NEXT_PUBLIC_`; redacted from logs. Needed only for a private Space; also makes ZeroGPU charge *your account's* quota (5 min/day) instead of the anonymous pool (2 min/day, per the [HF docs](https://huggingface.co/docs/hub/spaces-zerogpu)). **Not set in the current production deployment.** A Read-role token is enough. |
 | `HF_SPACE_MODEL` | Optional | Display label only; the Space decides the real model |
 | `QWEN_API_KEY` | Optional | Required in the AWS compose (vLLM `--api-key`) |
 | `SITE_ADDRESS` | AWS compose only | DNS name Caddy serves over HTTPS |
@@ -226,7 +254,7 @@ npx tsc --noEmit
 npm run build
 ```
 
-**65 tests in 12 files, all passing** (last run 2026-09-20): unit (image
+**75 tests in 15 files, all passing** (last run 2026-09-20): unit (image
 validation/preprocessing, normalization + status, summary, Excel, hashing,
 concurrency, model config, JSON extraction, Qwen retry/classification), API
 (health, export, extract incl. size guards and "one failed card doesn't crash the
@@ -248,7 +276,19 @@ Verified on 2026-09-20 on an Apple-silicon Mac (16 GB), Docker 28.5.2 (arm64):
 | Docker | `docker build` exit 0; container runs non-root, `/api/health` OK, sharp works inside the slim image |
 | UI | Dashboard/Leads/History, dark+light, theme persists across reload, multi-select, removal, progress, edit (status/counts recompute, persisted to History), search, sort, filter, empty and failed states, phone-width (400 px) layout via device emulation, row keyboard handler, zero console errors/warnings |
 
-Verified live against the Hugging Face Space on 2026-09-20:
+Verified live on the production deployment on 2026-09-20 (final polish round):
+
+| Claim | Evidence |
+| --- | --- |
+| 3-card batch on production | Sample cards through the live `/api/extract`: Morgan Maxwell and Priya Nair fully correct; the dark card returned Daniel Okafor with phone/location `null` (needs review). 9 real stage events streamed (3 cards × 3 stages). |
+| Timings from production | Per card: image preparation 62–125 ms, model request 5.8–6.2 s, **GPU inference 3.1–3.6 s**, parsing 0–3 ms, total 5.9–6.2 s (3 concurrent cards; 3 samples, not a benchmark) |
+| **Excel export from production data** | Those records sent to the live `/api/export`; workbook re-read with `exceljs`: exact 7 headers, values in the right columns, missing phone/location as blank cells, summary sheet correct. (Parsed programmatically; **not** opened in desktop Excel.) |
+| Retry on a failed card | Against a local fake OpenAI-compatible model that fails its first 6 calls: the card showed "Extraction needs review" with Retry / Edit manually / View image; Retry replaced the row with the extracted lead and the summary updated. **Not** exercised against a real Space failure. |
+| Sample cards, drawer, stage stepper | Used in a real browser session (dev server): sample loads into the queue; stepper advanced from server events; drawer showed image, completeness 7/7 and timings |
+| Phone-width layout (390 px) | Chrome device emulation via puppeteer-core on `/`, `/leads`, `/history`: `scrollWidth == innerWidth`, no element beyond the viewport |
+| Secrets | Production client JS bundles scanned: no `hf_` token, `HF_TOKEN`, or `NEXT_PUBLIC_` value |
+
+Verified live against the Hugging Face Space earlier the same day:
 
 | Claim | Evidence |
 | --- | --- |
@@ -268,9 +308,11 @@ Docker was not rebuilt after the Space provider was added.
 
 **Not verified — do not assume these work:**
 
-- **Phone-width layout after the latest layout change.** The browser tool could not
-  produce a narrow viewport this session (window resize had no effect; iframes and
-  popups were blocked), so only the earlier device-emulation check stands.
+- **Whether `HF_TOKEN` improves reliability.** The docs say authenticated calls use
+  the account's 5-minute quota rather than the anonymous 2-minute pool, but this
+  was not measured, and production currently runs **without** a token.
+- **Desktop Excel.** The `.xlsx` was validated by parsing, never opened in Excel.
+- **Docker after the Space provider was added** (last successful build predates it).
 
 - **Qwen on AWS.** `docker/docker-compose.aws.yml` and the runbook were never run.
   No AWS credentials/CLI were available. **This is the biggest submission risk.**
@@ -298,8 +340,10 @@ Docker was not rebuilt after the Space provider was added.
 - **Free GPU quota.** About 5 GPU-minutes/day per account on ZeroGPU; a large batch
   or repeated demo can exhaust it, after which cards fail with `quota_exceeded`
   until it resets. Not sized for production traffic.
-- **No retry / "view image" action on failed cards yet.** A failed card can be
-  edited by hand from the table; a one-click retry is not implemented.
+- **Retry needs the original image**, which is kept only in the current browser
+  session; History rows offer Edit manually but not Retry / View image.
+- **Progress percentage is cards completed / total.** Per-card progress is shown as
+  real stages, not a percentage, because the model call has no progress signal.
 - **No authentication or rate limiting.** A public deployment lets anyone consume
   model capacity; add auth or IP restrictions before sharing.
 - **Accuracy depends on the image and model.** Handwriting, stylized fonts, glare,
@@ -346,6 +390,11 @@ Built with [Claude Code](https://claude.com/claude-code) (Claude Sonnet 5).
   - ZeroGPU rejected calls that reserved 60 s when little quota remained; lowered
     the reservation to 25 s and added a distinct `quota_exceeded` error instead of
     the misleading "configuration or billing" message.
+  - Headless-Chrome mobile screenshots at 390 px looked clipped, but that was a
+    window-size artifact; proper device emulation showed no overflow.
+  - A first attempt at testing Retry "succeeded" because the AI SDK's own retries
+    absorbed the simulated failures; the fake server was changed to fail long
+    enough to produce a genuinely failed card.
   - Mobile navigation was unreachable; table rows were not keyboard-accessible;
     progress showed the wrong denominator; several smaller issues.
 - **Author's statement:** *[Author: before submitting, confirm that you have

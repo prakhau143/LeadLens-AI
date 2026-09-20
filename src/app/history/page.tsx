@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History as HistoryIcon, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, History as HistoryIcon, Trash2, XCircle } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/leads/empty-state";
@@ -9,6 +10,7 @@ import { LeadTable } from "@/components/leads/lead-table";
 import { ExportButton } from "@/components/leads/export-button";
 import {
   clearHistory,
+  groupByDay,
   loadHistory,
   saveBatchToHistory,
   type BatchHistoryEntry,
@@ -67,51 +69,89 @@ export default function HistoryPage() {
         {entries.length === 0 ? (
           <EmptyState
             icon={HistoryIcon}
-            title="No batches yet"
-            description="Batches you process on the Leads page will show up here. History is stored on this device only."
-          />
+            title="No extractions yet"
+            description="Batches you process on the Leads page will show up here, newest first. History is stored on this device only."
+            action={
+              <Button render={<Link href="/leads" />} nativeButton={false}>
+                Upload Cards
+              </Button>
+            }
+          >
+            <Link href="/leads" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+              or try a sample card
+            </Link>
+          </EmptyState>
         ) : (
-          <div className="space-y-3">
-            {entries.map((entry) => {
-              const isOpen = expandedId === entry.id;
-              return (
-                <div key={entry.id} className="glass-card rounded-xl p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">
-                        {new Date(entry.processedAt).toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {entry.summary.total} cards · {entry.summary.extracted} extracted ·{" "}
-                        {entry.summary.needsReview} needs review · {entry.summary.failed} failed
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <ExportButton leads={entry.records} summary={entry.summary} />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setExpandedId(isOpen ? null : entry.id)}
-                      >
-                        {isOpen ? "Hide" : "View"}
-                      </Button>
-                    </div>
-                  </div>
+          <div className="space-y-8">
+            {groupByDay(entries).map((group) => (
+              <section key={group.label} className="space-y-3">
+                <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  {group.label}
+                </h2>
+                <div className="space-y-3 border-l border-border/70 pl-4">
+                  {group.entries.map((entry) => {
+                    const isOpen = expandedId === entry.id;
+                    return (
+                      <div key={entry.id} className="glass-card rounded-xl p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="font-medium">
+                              {new Date(entry.processedAt).toLocaleTimeString([], {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                                {entry.summary.total} {entry.summary.total === 1 ? "card" : "cards"}
+                              </span>
+                            </p>
+                            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="size-3.5 text-emerald-500" />
+                                {entry.summary.extracted} extracted
+                              </span>
+                              {entry.summary.needsReview > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <AlertTriangle className="size-3.5 text-amber-500" />
+                                  {entry.summary.needsReview} need review
+                                </span>
+                              )}
+                              {entry.summary.failed > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <XCircle className="size-3.5 text-destructive" />
+                                  {entry.summary.failed} failed
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <ExportButton leads={entry.records} summary={entry.summary} />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setExpandedId(isOpen ? null : entry.id)}
+                            >
+                              {isOpen ? "Hide" : "View"}
+                            </Button>
+                          </div>
+                        </div>
 
-                  {isOpen && (
-                    <div className="mt-4">
-                      <LeadTable
-                        records={entry.records}
-                        previewUrls={{}}
-                        onUpdateLead={(leadId, lead) =>
-                          handleUpdateLead(entry.id, leadId, lead)
-                        }
-                      />
-                    </div>
-                  )}
+                        {isOpen && (
+                          <div className="mt-4">
+                            <LeadTable
+                              records={entry.records}
+                              previewUrls={{}}
+                              onUpdateLead={(leadId, lead) =>
+                                handleUpdateLead(entry.id, leadId, lead)
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </section>
+            ))}
           </div>
         )}
       </main>

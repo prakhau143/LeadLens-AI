@@ -45,6 +45,7 @@ async function processCard(
 ): Promise<LeadRecord> {
   const fileName = file.name || `card-${index + 1}`;
   emit({ type: "card_started", index, fileName, total });
+  emit({ type: "card_stage", index, stage: "preparing" });
 
   const makeRecord = (
     status: LeadRecord["status"],
@@ -99,18 +100,30 @@ async function processCard(
     seenHashes.add(hash);
 
     const timings: ExtractionTimings = {};
+    emit({ type: "card_stage", index, stage: "reading" });
     const rawLead = await extractLead(processedBuffer, timings);
+    emit({ type: "card_stage", index, stage: "validating" });
     const lead = normalizeLead(rawLead);
     const status = deriveStatus(lead);
+    const totalMs = Math.round(performance.now() - startedAt);
     log("info", "card_timing", {
       index,
       image_preparation_ms: imagePreparationMs,
       model_request_ms: timings.modelRequestMs,
       model_inference_ms: timings.modelInferenceMs,
       parsing_ms: timings.parsingMs,
-      total_ms: Math.round(performance.now() - startedAt),
+      total_ms: totalMs,
     });
-    const record = makeRecord(status, { lead });
+    const record = makeRecord(status, {
+      lead,
+      timings: {
+        imagePreparationMs,
+        modelRequestMs: timings.modelRequestMs,
+        modelInferenceMs: timings.modelInferenceMs,
+        parsingMs: timings.parsingMs,
+        totalMs,
+      },
+    });
     emit({ type: "card_completed", index, fileName, record });
     return record;
   } catch (error) {
