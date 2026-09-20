@@ -27,6 +27,7 @@ export interface SelectedFile {
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const MAX_CLIENT_SIZE_MB = 8;
 export const MAX_IMAGES_PER_BATCH = 50;
+const MAX_IMPORT_MB = 5;
 
 function validateClientSide(file: File): { ok: boolean; reason?: string } {
   if (!ALLOWED_TYPES.includes(file.type)) {
@@ -225,6 +226,40 @@ export function useExtraction() {
     }
   }, [readyFiles]);
 
+  const [isImporting, setIsImporting] = useState(false);
+
+  /** Loads a previously exported LeadLens .xlsx as a finished batch (no images, so no Retry). */
+  const importExcel = useCallback(async (file: File) => {
+    if (file.size > MAX_IMPORT_MB * 1024 * 1024) {
+      toast.error(`That file is too large (${MAX_IMPORT_MB} MB maximum).`);
+      return;
+    }
+    setIsImporting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      const response = await fetch("/api/import", { method: "POST", body: formData });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.records) {
+        throw new Error(body?.error ?? "Could not import that file.");
+      }
+      setSelected((prev) => {
+        prev.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+        return [];
+      });
+      setProcessedFiles([]);
+      setProcessedCount(0);
+      setRecords(body.records as LeadRecord[]);
+      setSummary(body.summary as BatchSummary);
+      toast.success(`Imported ${body.records.length} lead${body.records.length === 1 ? "" : "s"} from ${file.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not import that file.");
+    } finally {
+      setIsImporting(false);
+    }
+  }, []);
+
   const [retryingIds, setRetryingIds] = useState<ReadonlySet<string>>(new Set());
 
   /** Re-runs extraction for one already-processed card and swaps in the new record. */
@@ -271,6 +306,8 @@ export function useExtraction() {
   );
 
   return {
+    importExcel,
+    isImporting,
     retryCard,
     retryingIds,
     selected,

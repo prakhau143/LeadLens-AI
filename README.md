@@ -12,7 +12,7 @@ Upload card images → **Qwen3-VL** reads them → review & edit → export to E
 [![Model](https://img.shields.io/badge/model-Qwen3--VL--4B--Instruct-6D28D9?style=flat-square)](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct)
 [![Inference](https://img.shields.io/badge/inference-Hugging%20Face%20ZeroGPU-F59E0B?style=flat-square)](https://huggingface.co/spaces/prakhu23/leadlens-qwen3-vl)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2016%20on%20Vercel-000000?style=flat-square)](https://leadlens-ai-three.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-75%20passing-16A34A?style=flat-square)](#testing--verification)
+[![Tests](https://img.shields.io/badge/tests-87%20passing-16A34A?style=flat-square)](#testing--verification)
 
 <img src="docs/screenshots/hero-dark.png" alt="LeadLens AI landing page (dark mode)" width="900" />
 
@@ -82,7 +82,7 @@ All screenshots were captured from the **production deployment** with real Qwen 
 - **Failed-card recovery** — "Extraction needs review" with **Retry**, **Edit manually** and **View image**
 - **Lead drawer** — details view with source image, an *extraction completeness* count (fields found — **not** a model confidence score), model name and timing; then edit in place
 - **Table tools** — search across all fields, status filters, sortable columns, sticky header, truncation with tooltips
-- **Excel export** — exact 7 required columns plus a processing-summary sheet
+- **Excel export & import** — exact 7 required columns plus a processing-summary sheet; an exported `.xlsx` can be dropped back into the upload zone to review and edit it again
 - **History** — day-grouped batches, restorable and editable (browser-local)
 - **Duplicate detection** — exact SHA-256 of the normalized image, within a batch
 - **Polish** — dark / light theme with persistence, glass UI, phone-width responsive, reduced-motion friendly
@@ -232,6 +232,24 @@ History). Invalid files fail on their own without stopping the batch.
 - **`Processing Summary` sheet** — total, extracted, needs review, failed, duplicates, processed-at
 - Cell text is written as strings, so a value like `=1+1` is never evaluated as a formula (tested)
 
+### Excel import
+
+Drop an exported `.xlsx` into the **Leads** upload zone (or use **Browse Files**) and it
+opens as a finished batch — searchable, editable, re-exportable, saved to History.
+`POST /api/import` (`src/lib/services/import-service.ts`):
+
+- Reads the `Leads` sheet (or the first sheet), finds the header row within the first
+  5 rows, and matches the 7 export headers case-insensitively (plus a few obvious
+  spellings such as *Position*, *Phone*, *Email*)
+- **Checks the bytes, not the name or MIME type** (an `.xlsx` is a zip); 5 MB and 1000-row limits
+- Formulas are read as their **value, never their text**; rich text, hyperlinks and numbers
+  are flattened to plain strings; blank rows are skipped
+- **Status is recomputed** from the data (*needs review* if any field is missing or the
+  email is malformed) — the file cannot claim a lead is "extracted"
+- Only `.xlsx` is accepted; legacy `.xls` and CSV are rejected with a message saying so.
+  An imported batch has no source images, so it offers Edit but not Retry / View image
+- Round trip tested: a workbook from the app's own exporter imports back identically
+
 ## Deployment
 
 | Piece | Where | How |
@@ -285,14 +303,14 @@ rejected with 73 s left.
 ## Testing & verification
 
 ```bash
-npm test          # vitest run — 75 tests in 15 files
+npm test          # vitest run — 87 tests in 16 files
 npm run lint
 npx tsc --noEmit
 npm run build
 ```
 
 Automated tests cover image validation/preprocessing, JSON recovery, schema and
-normalization, Excel output, history grouping, the Space provider (mocked client), the
+normalization, Excel export and import (including a round trip), history grouping, the Space provider (mocked client), the
 extract route (stage events, timings, one failed card not crashing a batch), and log
 redaction. **No automated test calls a real model.**
 
@@ -303,6 +321,7 @@ redaction. **No automated test calls a real model.**
 | Reference card extracts correctly | `tests/fixtures/morgan-maxwell-card.png`: all 7 fields matched the printed card in 4/4 command-line runs, and through the API and browser UI, locally and on production |
 | 3-card batch on production | Two cards fully correct; the dark card returned phone/location as `null` (needs review). 9 real stage events streamed |
 | Excel from production data | Records from the live API sent to the live `/api/export`; workbook re-read with `exceljs`: exact 7 headers, correct columns, blanks left blank |
+| Excel import | A real export from production data was dropped into the upload zone in a browser: 3 leads, correct columns, statuses recomputed (2 extracted / 1 needs review), row opens in the drawer. A CSV and a text file renamed `.xlsx` were rejected with clear messages |
 | Retry | Against a local fake model that failed 6 calls: failed row → Retry → extracted, summary updated |
 | Phone-width layout | Chrome device emulation at 390 px: `scrollWidth == innerWidth` on `/`, `/leads`, `/history` |
 | Theme persistence | Dark and light survived refresh and navigation |
@@ -323,6 +342,7 @@ redaction. **No automated test calls a real model.**
 - **No authentication or rate limiting** — a public deployment lets anyone consume capacity
 - **No database** — history lives in `localStorage` (last 20 batches, this browser only); source images are not stored, so History shows text without the photo and cannot Retry
 - **One request per batch**, three cards at a time, capped by the function timeout (`maxDuration = 300`). Very large batches need a real queue
+- **Import parses an untrusted zip in memory.** Size (5 MB) and row (1000) limits apply, but a crafted high-compression file is not defended against beyond that; the worst case is one failed serverless invocation
 - **Duplicates are exact and in-batch only** — a re-photographed card or a later batch is not detected
 - **Accuracy depends on the image and model** — handwriting, stylised fonts, glare, heavy rotation, multilingual cards and low resolution are unmeasured risks. The model is told to return `null` rather than guess, but a confident misread is possible
 - **Progress percentage** is cards completed / total; per-card progress is shown as real stages because the model call has no progress signal
@@ -362,6 +382,7 @@ host, use `QWEN_BASE_URL=http://host.docker.internal:11434/v1`).
 | `/api/health` | GET | `{status, provider, model, timestamp}` — never exposes URLs or keys |
 | `/api/extract` | POST | `multipart/form-data` (`files`, repeated). Streams SSE events (`card_started`, `card_stage`, `card_completed`, `card_failed`, `card_duplicate`) ending in one `done` event. `413` if too large, `400` for empty/oversized batches |
 | `/api/export` | POST | JSON `{leads, summary}` (≤ 1000 leads) → `.xlsx` |
+| `/api/import` | POST | `multipart/form-data` (`file`, one `.xlsx`, ≤ 5 MB, ≤ 1000 leads) → `{records, summary}`; `400` with a readable message for anything else |
 
 **Project structure**
 

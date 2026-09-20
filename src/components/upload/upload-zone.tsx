@@ -8,11 +8,16 @@ import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 50;
 
+export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 export function UploadZone({
   onFilesAdded,
+  onFilesRejected,
   disabled,
 }: {
   onFilesAdded: (files: File[]) => void;
+  /** Called with the names of files that are neither an image nor an .xlsx. */
+  onFilesRejected?: (names: string[]) => void;
   disabled?: boolean;
 }) {
   const onDrop = useCallback(
@@ -24,12 +29,14 @@ export function UploadZone({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: (rejections) => onFilesRejected?.(rejections.map((r) => r.file.name)),
     disabled,
     multiple: true,
     accept: {
       "image/jpeg": [".jpg", ".jpeg"],
       "image/png": [".png"],
       "image/webp": [".webp"],
+      [XLSX_MIME]: [".xlsx"],
     },
   });
 
@@ -48,6 +55,9 @@ export function UploadZone({
       </div>
       <p className="font-medium">Drop business cards here</p>
       <p className="text-sm text-muted-foreground">JPG · PNG · WEBP</p>
+      <p className="text-xs text-muted-foreground">
+        or an exported LeadLens <span className="font-medium">.xlsx</span> to review and edit again
+      </p>
       <Button type="button" variant="secondary" className="mt-2">
         Browse Files
       </Button>

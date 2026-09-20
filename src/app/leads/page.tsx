@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { Inbox } from "lucide-react";
+import { toast } from "sonner";
 import { Navbar } from "@/components/layout/navbar";
 import { UploadZone } from "@/components/upload/upload-zone";
 import { FileList } from "@/components/upload/file-list";
@@ -35,7 +36,23 @@ export default function LeadsPage() {
     processedFiles,
     retryCard,
     retryingIds,
+    importExcel,
+    isImporting,
   } = useExtraction();
+
+  /** Images go to extraction; an .xlsx is imported on its own (one at a time). */
+  function handleFilesAdded(files: File[]) {
+    const isXlsx = (f: File) => /\.xlsx$/i.test(f.name);
+    const sheets = files.filter(isXlsx);
+    if (sheets.length === 0) {
+      addFiles(files);
+      return;
+    }
+    if (sheets.length > 1 || sheets.length < files.length) {
+      toast.info("Excel files are imported one at a time, separately from images. Importing the first Excel file only.");
+    }
+    void importExcel(sheets[0]);
+  }
 
   // Counts always reflect the current (possibly hand-corrected) records.
   const summary = useMemo(
@@ -79,7 +96,15 @@ export default function LeadsPage() {
       <main className="flex w-full flex-1 flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8 xl:px-12">
         {showUpload && (
           <>
-            <UploadZone onFilesAdded={addFiles} />
+            <UploadZone
+              onFilesAdded={handleFilesAdded}
+              onFilesRejected={(names) =>
+                toast.error(
+                  `Can't use ${names.length === 1 ? names[0] : `${names.length} files`}. Upload JPG, PNG or WEBP card images, or an .xlsx exported from LeadLens.`,
+                )
+              }
+              disabled={isImporting}
+            />
             <SampleCards onAdd={addFiles} />
             <FileList files={selected} onRemove={removeFile} />
             {selected.length > 0 && (
