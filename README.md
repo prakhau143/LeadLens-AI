@@ -257,6 +257,13 @@ opens as a finished batch — searchable, editable, re-exportable, saved to Hist
   An imported batch has no source images, so it offers Edit but not Retry / View image
 - Round trip tested: a workbook from the app's own exporter imports back identically
 
+## Why these choices
+
+- **Why Qwen3-VL?** It is a vision-language model that reads the visual layout of a card (name vs. company vs. contact block) and returns structured fields directly, instead of relying only on traditional OCR followed by hand-written parsing rules.
+- **Why the 4B instruct model?** A practical trade-off between vision-language capability, memory, inference cost and latency for a *free* GPU environment. It was not benchmarked against other Qwen3-VL sizes, so this is a rationale, not a measured comparison.
+- **Why Hugging Face ZeroGPU?** The assignment allowed a free-tier or equivalent environment. ZeroGPU provided GPU inference without a paid AWS GPU instance. It is **not AWS**, and this README does not claim otherwise (see the note at the top).
+- **Why isn't processing time constant?** GPU inference time and end-to-end request time are different things. Inference is a few seconds, but in a shared free GPU environment queueing, model wake-up and network transfer add variable latency on top. That is why the numbers below are ranges and why they were larger late in a heavy testing day.
+
 ## Design & accessibility
 
 A dark-first "AI workspace" look: deep navy, blue/violet accent, restrained glass surfaces, and a light theme treated as a first-class design (soft blue-grey surfaces on off-white).
@@ -313,11 +320,12 @@ Measured on the **production deployment**, 20 Sep 2026, from server-side timing 
 | Model request (wall-clock, includes queue + transfer) | 5.8–9.7 s |
 | **GPU inference** (inside the Space; what ZeroGPU bills) | **2.5–3.6 s** |
 | JSON parsing | 0–3 ms |
-| **End-to-end per card** | **5.9–9.8 s** |
+| **Server-measured total per card** | **5.9–9.8 s** |
+| Browser-observed wall-clock (upload → result) | up to **13–18 s** on the slowest live runs |
 
 > **This is a small sample, not a benchmark.** It is about a dozen production runs across the day,
 > shown as ranges, not averages. A cold Space is slower (24–34 s was seen on a first
-> call), and ZeroGPU queue time varies with load and remaining quota: in the slowest batch the GPU work was 2.5 s but the request took 9.7 s, the rest being queue and transfer.
+> call), and ZeroGPU queue time varies with load and remaining quota: in the slowest batch the GPU work was 2.5 s but the request took 9.7 s, the rest being queue and transfer. The browser-observed time also includes the upload, a possible serverless cold start and the stream back: one live sample run showed 13.4 s in the browser for a card whose server-measured processing time was 5.96 s.
 
 What was done about latency: the Space model is loaded once at start-up (no per-request
 initialisation), decoding is greedy with a 200-token cap, images are not resized unless
@@ -353,6 +361,9 @@ redaction. **No automated test calls a real model.**
 | Responsive audit (UI polish round) | Dashboard, upload, results and History at **11 widths, 320 → 1920 px, on the live site**: 44/44 combinations with no horizontal overflow, no element outside the viewport, no control under 24 px, **0 under 44 px on touch**, and no console errors |
 | Interactive states | Mobile menu (closes on Esc and after navigation), filter sheet, bottom-sheet drawer, edit form (invalid email blocks Save, valid saves), failed row → Retry, help dialog, keyboard navigation and skip link — all exercised in a real browser |
 | Sample flow + batch + Excel on production | *Try a sample → Modern → Run AI Extraction* returned all 7 Morgan Maxwell fields (9.3 s end to end); a 3-card batch gave 2 successful / 1 needs review; an edit saved; the downloaded `.xlsx` had the exact 7 headers and the edited value |
+| Final QA pass (production build) | 40 scripted checks — multi/drag/paste upload, search, sort, filters, drawer, copy (exact clipboard values), edit, History, theme persistence, Help, skip link, focus ring, mobile menu, filter sheet, bottom-sheet drawer, canvas hit-testing and reduced motion, failed card → Retry — **40/40**, no console errors |
+| Final QA pass (deployed site, real Chrome) | Sample flow with the real model (all 7 fields), Retry through the drawer, copy buttons (real clicks), Excel export (exact 7 headers), Excel import, search/sort/filter, edit, Escape, Help dialog, History, theme persistence |
+| Bugs found and fixed in QA | paste handler threw when the event target was not an Element; desktop nav links were 36 px on touch tablets |
 | Contrast | All token pairs in both themes pass WCAG AA (measured with a script, see *Design & accessibility*) |
 | Theme persistence | Dark and light survived refresh and navigation |
 | No client-side secrets | Production JS bundles scanned for `hf_` tokens, `HF_TOKEN`, `NEXT_PUBLIC_` |
@@ -365,6 +376,8 @@ redaction. **No automated test calls a real model.**
 - **Docker** — the last successful image build predates the Space provider
 - **Real photographs** — test cards are synthetic renders plus one designed reference card; accuracy on messy real photos is unmeasured
 - **Browsers and devices** — all browser testing was **Chrome** (headless + device emulation). Safari, Firefox and real phones/tablets were not tested, and the touch-target results come from emulation
+- **Vercel's bot check** — after a very large volume of *automated* requests from one machine, Vercel served its "Security Checkpoint" challenge (HTTP 403) to that machine's scripts. A real Chrome window on the same machine loaded the site normally, so ordinary visitors are unaffected, but scripted evaluation from a single IP could hit it
+- **No `Content-Security-Policy` header** — other security headers are set (`X-Frame-Options: DENY`, `nosniff`, referrer and permissions policies); a nonce-based CSP was not attempted
 - **Real screen readers / real key presses** — row keyboard handling was verified with a dispatched event only
 
 ## Limitations
@@ -449,7 +462,11 @@ tests/{unit,api,integration,fixtures}
 
 ## AI usage
 
-Built with [Claude Code](https://claude.com/claude-code) (Claude Sonnet 5).
+**Tools used**
+- **Claude Code** (Claude Sonnet 5) — implementation, testing, debugging, documentation
+- **ChatGPT** — used by the author for architecture brainstorming, UI/UX recommendations and reviewing plans; those recommendations were then given to Claude Code as instructions
+
+Built with [Claude Code](https://claude.com/claude-code).
 
 - **Used for:** architecture and stack proposal, model selection (checked against the live Hugging Face API rather than guessed), the extraction prompt and schema, the API/service layer, the UI, the tests, the Docker/AWS files, the Hugging Face Space, and this documentation
 - **Adopted:** the pipeline (validate → preprocess → dedupe → extract → normalize → stream), SSE progress instead of job polling, client-side history instead of a database, and — when AWS proved impractical — a Hugging Face ZeroGPU Space behind an unchanged provider switch

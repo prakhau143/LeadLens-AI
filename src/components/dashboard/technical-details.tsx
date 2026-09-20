@@ -5,7 +5,7 @@ const ROWS: { label: string; value: string }[] = [
   { label: "Inference", value: "Hugging Face ZeroGPU (Gradio Space)" },
   { label: "Frontend & API", value: "Vercel · Next.js" },
   { label: "Observed GPU time", value: "2.5–3.6 s per card*" },
-  { label: "Observed end-to-end", value: "5.9–9.8 s per card*" },
+  { label: "Observed processing time", value: "5.9–9.8 s per card* (server-measured)" },
   { label: "Fields", value: "7 structured fields" },
   { label: "Export", value: "Excel (.xlsx)" },
 ];
@@ -31,7 +31,7 @@ export function TechnicalDetails() {
         </dl>
         <p className="mt-4 text-xs text-muted-foreground">
           * Range from about a dozen production runs on 20 Sep 2026 — a small sample, not a formal
-          benchmark; queue time varies with load. AWS was not used; inference runs on Hugging Face ZeroGPU.
+          benchmark. Wall-clock time in the browser was longer on the slowest runs (13–18 s) because of cold starts and GPU queueing. AWS was not used; inference runs on Hugging Face ZeroGPU.
         </p>
       </div>
     </details>

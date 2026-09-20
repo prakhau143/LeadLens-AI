@@ -43,7 +43,7 @@ export function Navbar() {
               href={item.href}
               aria-current={isActive(item.href) ? "page" : undefined}
               className={cn(
-                "flex min-h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors",
+                "touch-target flex min-h-9 items-center rounded-lg px-3 text-sm font-medium transition-colors",
                 isActive(item.href)
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",

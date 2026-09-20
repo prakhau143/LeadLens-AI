@@ -43,8 +43,9 @@ export function UploadZone({
   useEffect(() => {
     if (disabled) return;
     const onPaste = (event: ClipboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      // Ignore pastes into form fields. The target is not always an Element (e.g. window).
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, [contenteditable='true']")) return;
       const images = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
       if (images.length === 0) return;
       event.preventDefault();
