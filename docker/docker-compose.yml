@@ -1,0 +1,22 @@
+services:
+  leadlens:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      - PORT=3000
+    # Lets the container reach an Ollama server running on the host
+    # (QWEN_BASE_URL=http://host.docker.internal:11434/v1).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,64 @@
+# UNTESTED: written from vLLM docs, not yet run on a GPU host.
+# One GPU EC2 instance runs all three containers:
+#   caddy  -> public HTTPS (80/443)  -> app
+#   app    -> http://vllm:8000/v1    (Docker-internal only)
+#   vllm   -> serves Qwen3-VL; NOT published to the host or the internet
+services:
+  vllm:
+    image: vllm/vllm-openai:latest   # pin an exact tag once validated; Qwen3-VL needs vLLM >= 0.11.0
+    command:
+      - --model=${QWEN_MODEL:-Qwen/Qwen3-VL-4B-Instruct}
+      - --api-key=${QWEN_API_KEY:?set QWEN_API_KEY}
+      - --max-model-len=8192
+      - --limit-mm-per-prompt.image=1
+      - --limit-mm-per-prompt.video=0
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 300s   # first start downloads the weights
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - QWEN_BASE_URL=http://vllm:8000/v1
+      - QWEN_MODEL=${QWEN_MODEL:-Qwen/Qwen3-VL-4B-Instruct}
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - MAX_UPLOAD_IMAGES=${MAX_UPLOAD_IMAGES:-50}
+      - MAX_IMAGE_SIZE_MB=${MAX_IMAGE_SIZE_MB:-8}
+    depends_on:
+      vllm:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS:?set SITE_ADDRESS (a DNS name pointing at this host)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
+  caddy-data:

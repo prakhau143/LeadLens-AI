@@ -1,0 +1,7 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	# SSE progress stream: do not buffer.
+	reverse_proxy app:3000 {
+		flush_interval -1
+	}
+}
