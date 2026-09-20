@@ -257,6 +257,15 @@ Verified live against the Hugging Face Space on 2026-09-20:
 | Full UI flow | upload → progress → table → edit (persisted to History after refresh) → Excel export; the downloaded `.xlsx` was re-read: exact 7 headers, edit included, blanks blank |
 | Quota failure handling | A real `quota exceeded` reply from ZeroGPU was surfaced as its own error code and not retried |
 
+Deployed on 2026-09-20: **https://leadlens-ai-three.vercel.app** (Vercel, production). Its
+only env var is `HF_SPACE_ID`; no token is set, so the Space is called anonymously.
+Checked live: `/`, `/leads`, `/history` return 200; `/api/health` reports provider
+`hf-space`; a real upload of the reference card through the UI and through the API
+returned all 7 fields correctly. Server-side timings for that API run (Vercel logs):
+image preparation 62 ms, model request 6,073 ms (GPU inference 3,832 ms), parsing
+2 ms, total 6,150 ms. The client JS bundles contain no token or `NEXT_PUBLIC_` value.
+Docker was not rebuilt after the Space provider was added.
+
 **Not verified — do not assume these work:**
 
 - **Phone-width layout after the latest layout change.** The browser tool could not
@@ -267,7 +276,6 @@ Verified live against the Hugging Face Space on 2026-09-20:
   No AWS credentials/CLI were available. **This is the biggest submission risk.**
 - **vLLM specifics:** the pinned image tag, flags, and JSON-schema output *with*
   image input.
-- **A public app URL.** The Space is public; the app itself is not yet deployed.
 - **Vercel AI Gateway path.** A live call failed with `403 customer_verification_required`
   (no payment card on the Vercel team), so it was never validated end to end.
 - **Real photographs.** Test cards are synthetic renders
