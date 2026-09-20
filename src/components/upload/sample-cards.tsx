@@ -35,7 +35,7 @@ export function SampleCards({
   }
 
   return (
-    <div className="glass-card rounded-2xl p-4">
+    <div id="samples" className="glass-card scroll-mt-20 rounded-2xl p-4">
       <div className="mb-3 flex items-center gap-2">
         <FlaskConical className="size-4 text-brand" />
         <p className="text-sm font-medium">No card handy? Try a sample</p>

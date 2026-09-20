@@ -116,6 +116,7 @@ async function processCard(
     });
     const record = makeRecord(status, {
       lead,
+      model: describeModel().model,
       timings: {
         imagePreparationMs,
         modelRequestMs: timings.modelRequestMs,

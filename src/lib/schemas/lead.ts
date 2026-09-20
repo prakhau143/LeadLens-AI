@@ -46,6 +46,8 @@ export const LeadRecordSchema = z.object({
   lead: LeadSchema,
   failureReason: z.string().nullable().default(null),
   timings: ProcessingTimingsSchema.optional(),
+  /** Model id that produced this lead (display only), e.g. "Qwen/Qwen3-VL-4B-Instruct". */
+  model: z.string().optional(),
 });
 
 export type LeadRecord = z.infer<typeof LeadRecordSchema>;

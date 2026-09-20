@@ -158,3 +158,74 @@
       0 8px 24px -8px color-mix(in oklch, var(--brand) 45%, transparent);
   }
 }
+@layer components {
+  /* Soft brand-tinted wash behind the hero: two blurred radial blobs, low opacity. */
+  .hero-backdrop {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .hero-backdrop::before {
+    content: "";
+    position: absolute;
+    inset: -20% -10% auto -10%;
+    height: 90%;
+    z-index: -1;
+    background:
+      radial-gradient(40% 60% at 25% 30%, color-mix(in oklch, var(--brand) 22%, transparent), transparent 70%),
+      radial-gradient(35% 55% at 78% 20%, color-mix(in oklch, var(--brand) 12%, transparent), transparent 70%);
+    filter: blur(24px);
+  }
+
+  .ll-fade-up {
+    animation: ll-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ll-pulse-ring {
+    animation: ll-pulse-ring 1.8s ease-out infinite;
+  }
+  .ll-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklch, var(--brand-foreground) 45%, transparent),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: ll-shimmer 1.6s linear infinite;
+  }
+}
+
+@keyframes ll-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ll-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--brand) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+@keyframes ll-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-fade-up,
+  .ll-pulse-ring,
+  .ll-shimmer {
+    animation: none;
+  }
+}

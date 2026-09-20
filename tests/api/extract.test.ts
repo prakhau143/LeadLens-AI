@@ -80,6 +80,7 @@ describe("POST /api/extract", () => {
     });
     expect(typeof completed.record.timings.imagePreparationMs).toBe("number");
     expect(typeof completed.record.timings.totalMs).toBe("number");
+    expect(typeof completed.record.model).toBe("string");
   });
 
   it("streams per-card progress and still completes when one card fails", async () => {

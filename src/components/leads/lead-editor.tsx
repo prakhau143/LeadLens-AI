@@ -60,6 +60,7 @@ export function LeadEditor({
   const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ");
   const { filled, total } = leadCompleteness(lead);
   const t = record.timings;
+  const modelName = record.model?.split("/").pop();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -88,33 +89,19 @@ export function LeadEditor({
             ))
           ) : (
             <>
-              <div>
-                <p className="font-heading text-xl font-semibold">{name || <Missing />}</p>
-                <p className="text-sm text-muted-foreground">{lead.job_title ?? "Job title not detected"}</p>
-                <p className="text-sm font-medium">{lead.company ?? "Company not detected"}</p>
+              <div className="space-y-0.5">
+                <p className="font-heading text-2xl font-semibold tracking-tight">
+                  {name || <Missing />}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {lead.job_title ?? "Job title not detected"}
+                </p>
               </div>
 
-              <Field label="Extraction completeness">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex gap-1"
-                    role="img"
-                    aria-label={`${filled} of ${total} fields extracted`}
-                  >
-                    {Array.from({ length: total }, (_, i) => (
-                      <span
-                        key={i}
-                        className={`h-1.5 w-6 rounded-full ${i < filled ? "bg-brand" : "bg-muted"}`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm tabular-nums">
-                    {filled} / {total} fields
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  A count of fields found on the card, not a model confidence score.
-                </p>
+              <hr className="border-border/60" />
+
+              <Field label="Company">
+                <p className="text-sm font-medium">{lead.company ?? <Missing />}</p>
               </Field>
 
               <Field label="Contact">
@@ -134,6 +121,41 @@ export function LeadEditor({
                 <p className="flex items-start gap-2 text-sm">
                   <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   {lead.location ?? <Missing />}
+                </p>
+              </Field>
+
+              <hr className="border-border/60" />
+
+              <Field label="Extraction">
+                <ul className="space-y-1.5 text-sm">
+                  <li className="flex items-center gap-2">
+                    <span className="size-1.5 rounded-full bg-brand" />
+                    <span className="tabular-nums">{filled} / {total} fields</span>
+                    <span
+                      className="ml-1 flex gap-0.5"
+                      role="img"
+                      aria-label={`${filled} of ${total} fields extracted`}
+                    >
+                      {Array.from({ length: total }, (_, i) => (
+                        <span key={i} className={`h-1 w-3 rounded-full ${i < filled ? "bg-brand" : "bg-muted"}`} />
+                      ))}
+                    </span>
+                  </li>
+                  {modelName && (
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-brand" />
+                      {modelName}
+                    </li>
+                  )}
+                  {t?.totalMs !== undefined && (
+                    <li className="flex items-center gap-2 tabular-nums">
+                      <span className="size-1.5 rounded-full bg-brand" />
+                      {(t.totalMs / 1000).toFixed(2)} s total
+                    </li>
+                  )}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Fields found on the card — a count, not a model confidence score.
                 </p>
               </Field>
 
@@ -158,7 +180,7 @@ export function LeadEditor({
           )}
         </div>
 
-        <SheetFooter className="flex-row justify-end gap-2">
+        <SheetFooter className="flex-row justify-end gap-2 border-t border-border/60">
           {editing ? (
             <>
               <Button
