@@ -14,7 +14,8 @@ describe("history helpers", () => {
   it("labels today, yesterday and older dates", () => {
     expect(dayLabel(new Date(2026, 8, 20, 9, 0).toISOString(), NOW)).toBe("Today");
     expect(dayLabel(new Date(2026, 8, 19, 23, 0).toISOString(), NOW)).toBe("Yesterday");
-    expect(dayLabel(new Date(2026, 8, 1, 9, 0).toISOString(), NOW)).not.toMatch(/Today|Yesterday/);
+    expect(dayLabel(new Date(2026, 8, 1, 9, 0).toISOString(), NOW)).toBe("Earlier");
+    expect(dayLabel(new Date(2026, 8, 18, 9, 0).toISOString(), NOW)).toBe("Earlier"); // 2 days ago
   });
 
   it("groups newest-first entries into consecutive day buckets", () => {
@@ -23,12 +24,15 @@ describe("history helpers", () => {
         entry("a", new Date(2026, 8, 20, 10, 0)),
         entry("b", new Date(2026, 8, 20, 9, 0)),
         entry("c", new Date(2026, 8, 19, 16, 0)),
+        entry("d", new Date(2026, 7, 2, 16, 0)),
+        entry("e", new Date(2026, 6, 1, 16, 0)),
       ],
       NOW,
     );
     expect(groups.map((g) => [g.label, g.entries.map((e) => e.id)])).toEqual([
       ["Today", ["a", "b"]],
       ["Yesterday", ["c"]],
+      ["Earlier", ["d", "e"]],
     ]);
   });
 

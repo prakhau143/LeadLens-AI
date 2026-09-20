@@ -12,7 +12,7 @@ Upload card images → **Qwen3-VL** reads them → review & edit → export to E
 [![Model](https://img.shields.io/badge/model-Qwen3--VL--4B--Instruct-6D28D9?style=flat-square)](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct)
 [![Inference](https://img.shields.io/badge/inference-Hugging%20Face%20ZeroGPU-F59E0B?style=flat-square)](https://huggingface.co/spaces/prakhu23/leadlens-qwen3-vl)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2016%20on%20Vercel-000000?style=flat-square)](https://leadlens-ai-three.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-87%20passing-16A34A?style=flat-square)](#testing--verification)
+[![Tests](https://img.shields.io/badge/tests-91%20passing-16A34A?style=flat-square)](#testing--verification)
 
 <img src="docs/screenshots/hero-dark.png" alt="LeadLens AI landing page (dark mode)" width="900" />
 
@@ -67,7 +67,11 @@ Leads**. No image needed.
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/hero-light.png" alt="Light theme" /><br/><sub><b>Light theme</b> — theme persists across pages</sub></td>
-    <td width="50%" align="center"><img src="docs/screenshots/mobile-results.png" alt="Mobile layout" width="240" /><br/><sub><b>Phone width</b> — no horizontal overflow</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/mobile-results.png" alt="Mobile lead cards" width="240" /><br/><sub><b>Phone</b> — lead cards instead of a shrunken table</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/screenshots/mobile-drawer.png" alt="Mobile bottom-sheet drawer" width="240" /><br/><sub><b>Phone drawer</b> — bottom sheet, 44 px targets</sub></td>
+    <td width="50%"><img src="docs/screenshots/hero-dark.png" alt="Landing page with the subtle data background" /><br/><sub><b>Landing</b> — faint card → AI → data-grid backdrop (wide screens only)</sub></td>
   </tr>
 </table>
 
@@ -85,7 +89,10 @@ All screenshots were captured from the **production deployment** with real Qwen 
 - **Excel export & import** — exact 7 required columns plus a processing-summary sheet; an exported `.xlsx` can be dropped back into the upload zone to review and edit it again
 - **History** — day-grouped batches, restorable and editable (browser-local)
 - **Duplicate detection** — exact SHA-256 of the normalized image, within a batch
-- **Polish** — dark / light theme with persistence, glass UI, phone-width responsive, reduced-motion friendly
+- **Sample picker** — choose *Modern*, *Minimal* or *Dense*, then **Run AI Extraction**: real model output, never canned data. Paste an image (Ctrl/⌘ + V) also works
+- **Responsive** — table on tablet/desktop, **lead cards + filter sheet + bottom-sheet drawer** on phones, verified from 320 to 1920 px
+- **Accessible** — keyboard navigation (skip link, arrow keys in the table, Esc closes panels), icon + text status badges, 44 px touch targets on touch devices, measured WCAG AA contrast, reduced-motion support
+- **Design** — dark-first navy theme with a polished light mode, restrained glassmorphism, and a lightweight animated backdrop that is disabled on phones
 
 ## Architecture
 
@@ -250,6 +257,25 @@ opens as a finished batch — searchable, editable, re-exportable, saved to Hist
   An imported batch has no source images, so it offers Edit but not Retry / View image
 - Round trip tested: a workbook from the app's own exporter imports back identically
 
+## Design & accessibility
+
+A dark-first "AI workspace" look: deep navy, blue/violet accent, restrained glass surfaces, and a light theme treated as a first-class design (soft blue-grey surfaces on off-white).
+
+**Design tokens** (`src/app/globals.css`): background, foreground, muted, brand + brand-2 accent, border, `--success` / `--warning` / destructive, ring, and a `.glass-card` surface. Status is always **icon + text**, never colour alone.
+
+**Contrast is measured, not eyeballed.** The OKLCH tokens were converted to sRGB and checked with the WCAG 2 ratio formula in both themes: every text/background pair passes AA (lowest **5.9 : 1** against the 4.5 : 1 requirement), and the focus ring clears 3 : 1.
+
+**Background.** A small `<canvas>` (no Three.js, no assets, no new dependency) draws faint card outlines → an "AI node" → a dot-matrix, with ~24 particles moving between them at very low opacity. It is:
+- **lazy-loaded** after the browser is idle, and only on screens ≥ 768 px without `prefers-reduced-motion` — phones and reduced-motion users get a static gradient + grid (CSS only) and never download the canvas code
+- capped at **30 fps** and **stops drawing while the tab is hidden**
+- `aria-hidden`, `pointer-events: none`, behind all content
+
+Measured (Chrome, unminified dev build): about **2–3 % main-thread time** on desktop; **0 animation frames and 0.0 %** on phone width, with reduced motion, and while hidden.
+
+**Responsive & touch.** Tested at 320, 360, 375, 390, 414, 768, 820, 1024, 1280, 1440 and 1920 px. On touch devices (`pointer: coarse`) buttons, inputs and summaries are at least 44 × 44 px; on all devices nothing is under WCAG 2.2's 24 px minimum.
+
+**Keyboard & screen reader.** Skip link; visible focus rings; table rows are focusable (Enter opens, ↑/↓ move); sort headers are buttons with `aria-sort`; the drawer, help dialog and mobile menu are real dialogs with focus trapping and Esc to close; the mobile menu closes after navigation; form fields have labels and an `aria-invalid` email error; copy buttons announce "copied" politely.
+
 ## Deployment
 
 | Piece | Where | How |
@@ -284,14 +310,14 @@ Measured on the **production deployment**, 20 Sep 2026, from server-side timing 
 | Stage | Observed |
 | --- | --- |
 | Image preparation | 62–125 ms |
-| Model request (wall-clock, includes queue + transfer) | 5.8–6.2 s |
-| **GPU inference** (inside the Space; what ZeroGPU bills) | **3.1–3.6 s** |
+| Model request (wall-clock, includes queue + transfer) | 5.8–9.7 s |
+| **GPU inference** (inside the Space; what ZeroGPU bills) | **2.5–3.6 s** |
 | JSON parsing | 0–3 ms |
-| **End-to-end per card** | **5.9–6.2 s** (one later run: 7.6 s) |
+| **End-to-end per card** | **5.9–9.8 s** |
 
-> **This is a small sample, not a benchmark.** It is a handful of production runs,
+> **This is a small sample, not a benchmark.** It is about a dozen production runs across the day,
 > shown as ranges, not averages. A cold Space is slower (24–34 s was seen on a first
-> call), and ZeroGPU queue time varies with load and remaining quota.
+> call), and ZeroGPU queue time varies with load and remaining quota: in the slowest batch the GPU work was 2.5 s but the request took 9.7 s, the rest being queue and transfer.
 
 What was done about latency: the Space model is loaded once at start-up (no per-request
 initialisation), decoding is greedy with a 200-token cap, images are not resized unless
@@ -303,7 +329,8 @@ rejected with 73 s left.
 ## Testing & verification
 
 ```bash
-npm test          # vitest run — 87 tests in 16 files
+npm test          # vitest run — 91 tests in 16 files
+npm run typecheck
 npm run lint
 npx tsc --noEmit
 npm run build
@@ -323,7 +350,10 @@ redaction. **No automated test calls a real model.**
 | Excel from production data | Records from the live API sent to the live `/api/export`; workbook re-read with `exceljs`: exact 7 headers, correct columns, blanks left blank |
 | Excel import | A real export from production data was dropped into the upload zone in a browser: 3 leads, correct columns, statuses recomputed (2 extracted / 1 needs review), row opens in the drawer. A CSV and a text file renamed `.xlsx` were rejected with clear messages |
 | Retry | Against a local fake model that failed 6 calls: failed row → Retry → extracted, summary updated |
-| Phone-width layout | Chrome device emulation at 390 px: `scrollWidth == innerWidth` on `/`, `/leads`, `/history` |
+| Responsive audit (UI polish round) | Dashboard, upload, results and History at **11 widths, 320 → 1920 px, on the live site**: 44/44 combinations with no horizontal overflow, no element outside the viewport, no control under 24 px, **0 under 44 px on touch**, and no console errors |
+| Interactive states | Mobile menu (closes on Esc and after navigation), filter sheet, bottom-sheet drawer, edit form (invalid email blocks Save, valid saves), failed row → Retry, help dialog, keyboard navigation and skip link — all exercised in a real browser |
+| Sample flow + batch + Excel on production | *Try a sample → Modern → Run AI Extraction* returned all 7 Morgan Maxwell fields (9.3 s end to end); a 3-card batch gave 2 successful / 1 needs review; an edit saved; the downloaded `.xlsx` had the exact 7 headers and the edited value |
+| Contrast | All token pairs in both themes pass WCAG AA (measured with a script, see *Design & accessibility*) |
 | Theme persistence | Dark and light survived refresh and navigation |
 | No client-side secrets | Production JS bundles scanned for `hf_` tokens, `HF_TOKEN`, `NEXT_PUBLIC_` |
 
@@ -334,6 +364,7 @@ redaction. **No automated test calls a real model.**
 - **Desktop Excel** — the `.xlsx` was validated by parsing, never opened in Excel
 - **Docker** — the last successful image build predates the Space provider
 - **Real photographs** — test cards are synthetic renders plus one designed reference card; accuracy on messy real photos is unmeasured
+- **Browsers and devices** — all browser testing was **Chrome** (headless + device emulation). Safari, Firefox and real phones/tablets were not tested, and the touch-target results come from emulation
 - **Real screen readers / real key presses** — row keyboard handling was verified with a dispatched event only
 
 ## Limitations

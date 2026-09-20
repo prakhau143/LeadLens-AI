@@ -21,14 +21,12 @@ export const maxDuration = 300;
 const CONCURRENCY = 3;
 
 const FAILURE_MESSAGES = {
-  provider_unavailable:
-    "The AI service is currently unavailable (configuration or billing issue). Please contact the administrator.",
+  provider_unavailable: "AI processing is temporarily unavailable. Please try again later.",
   quota_exceeded:
-    "The free GPU quota for the AI model is used up for now. It resets daily; please try again later.",
-  provider_unreachable:
-    "The AI service could not be reached. Please try again shortly or contact the administrator.",
+    "AI processing is temporarily unavailable because the inference quota has been reached. Please try again after the quota resets.",
+  provider_unreachable: "AI processing could not be reached right now. Please try again in a moment.",
   rate_limited: "The AI service is busy. Please try again in a moment.",
-  model_output: "The model returned an unreadable response for this card.",
+  model_output: "Qwen3-VL returned an incomplete or unreadable response.",
   unknown: "Unable to process this card. Please try again.",
 } as const;
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Check, Circle, Loader2 } from "lucide-react";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { FileList } from "@/components/upload/file-list";
@@ -8,6 +9,13 @@ import type { SelectedFile } from "@/hooks/use-extraction";
 import { cn } from "@/lib/utils";
 
 /** The three stages the server actually reports; nothing here is simulated. */
+const STAGE_MESSAGE = {
+  queued: "Waiting to start…",
+  preparing: "Preparing the image…",
+  reading: "Analyzing card structure…",
+  validating: "Checking the extracted fields…",
+} as const;
+
 const STEPS = [
   { key: "preparing", label: "Preparing image" },
   { key: "reading", label: "Reading card & extracting fields" },
@@ -96,13 +104,29 @@ export function ProcessingProgress({
           <span className="size-3 rounded-full bg-brand" />
         </span>
         <p className="text-xs font-semibold tracking-[0.16em] uppercase">
-          Analyzing business {single ? "card" : "cards"}
+          AI extraction
         </p>
         <p className="text-sm tabular-nums text-muted-foreground">{elapsed}s elapsed</p>
       </div>
 
       {single ? (
         <>
+          {inFlight[0] && (
+            <div className="relative mx-auto aspect-[16/10] w-full max-w-xs overflow-hidden rounded-xl border border-border/60 bg-muted">
+              <Image
+                src={inFlight[0].previewUrl}
+                alt={`Card being analyzed: ${inFlight[0].file.name}`}
+                fill
+                sizes="320px"
+                className="object-contain"
+                unoptimized
+              />
+              {inFlight[0].stage === "reading" && <span className="ll-scan" aria-hidden />}
+            </div>
+          )}
+          <p className="text-center text-sm text-muted-foreground" role="status">
+            <span className="font-medium text-foreground">Qwen3-VL</span> · {STAGE_MESSAGE[inFlight[0]?.stage ?? "queued"]}
+          </p>
           <ol className="space-y-3.5">
             {STEPS.map((step, i) => (
               <StepRow
@@ -126,7 +150,7 @@ export function ProcessingProgress({
         </>
       )}
 
-      <p className="text-center text-xs text-muted-foreground">Powered by Qwen3-VL</p>
+      <p className="text-center text-xs text-muted-foreground">Progress reflects real processing stages. Powered by Qwen3-VL.</p>
     </div>
   );
 }

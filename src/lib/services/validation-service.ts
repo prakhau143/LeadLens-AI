@@ -2,6 +2,11 @@ import type { Lead, LeadRecord, LeadStatus } from "@/lib/schemas/lead";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Same plausibility check the status logic uses; shared with the edit form. */
+export function isValidEmail(value: string): boolean {
+  return EMAIL_RE.test(value.trim());
+}
+
 function cleanString(value: string | null): string | null {
   if (value == null) return null;
   const trimmed = value.trim();

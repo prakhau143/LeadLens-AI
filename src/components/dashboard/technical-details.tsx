@@ -4,8 +4,8 @@ const ROWS: { label: string; value: string }[] = [
   { label: "Model", value: "Qwen3-VL-4B-Instruct (bf16)" },
   { label: "Inference", value: "Hugging Face ZeroGPU (Gradio Space)" },
   { label: "Frontend & API", value: "Vercel · Next.js" },
-  { label: "Observed GPU time", value: "3.1–3.6 s per card*" },
-  { label: "Observed end-to-end", value: "5.9–6.2 s per card*" },
+  { label: "Observed GPU time", value: "2.5–3.6 s per card*" },
+  { label: "Observed end-to-end", value: "5.9–9.8 s per card*" },
   { label: "Fields", value: "7 structured fields" },
   { label: "Export", value: "Excel (.xlsx)" },
 ];
@@ -30,8 +30,8 @@ export function TechnicalDetails() {
           ))}
         </dl>
         <p className="mt-4 text-xs text-muted-foreground">
-          * Measured on the production deployment with 3 sample cards on 20 Sep 2026 — a small
-          sample, not a formal benchmark. AWS was not used; inference runs on Hugging Face ZeroGPU.
+          * Range from about a dozen production runs on 20 Sep 2026 — a small sample, not a formal
+          benchmark; queue time varies with load. AWS was not used; inference runs on Hugging Face ZeroGPU.
         </p>
       </div>
     </details>

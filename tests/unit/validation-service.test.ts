@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveStatus, normalizeLead } from "@/lib/services/validation-service";
+import { deriveStatus, isValidEmail, normalizeLead } from "@/lib/services/validation-service";
 import type { Lead } from "@/lib/schemas/lead";
 
 const fullLead: Lead = {
@@ -83,5 +83,17 @@ describe("summarize", () => {
     const mk = (status: LeadRecord["status"]): LeadRecord => ({ id: status, sourceFileName: "x", status, failureReason: null, lead: fullLead });
     const s = summarize([mk("extracted"), mk("extracted"), mk("needs_review"), mk("failed"), mk("duplicate")], "T");
     expect(s).toEqual({ total: 5, extracted: 2, needsReview: 1, failed: 1, duplicates: 1, processedAt: "T" });
+  });
+});
+
+describe("isValidEmail", () => {
+  it("accepts ordinary addresses and trims whitespace", () => {
+    expect(isValidEmail("hello@reallygreatsite.com")).toBe(true);
+    expect(isValidEmail("  a.b+c@sub.example.co  ")).toBe(true);
+  });
+  it("rejects text that is not an address", () => {
+    for (const bad of ["bad address", "no-at-sign.com", "a@b", "a@ b.com", "@x.com", ""]) {
+      expect(isValidEmail(bad)).toBe(false);
+    }
   });
 });

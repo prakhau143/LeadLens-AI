@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { BatchSummary, LeadRecord } from "@/lib/schemas/lead";
@@ -13,10 +13,11 @@ export function ExportButton({
   leads: LeadRecord[];
   summary: BatchSummary;
 }) {
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "preparing" | "done">("idle");
 
   async function handleExport() {
-    setLoading(true);
+    setPhase("preparing");
+    const toastId = toast.loading("Preparing your Excel file…");
     try {
       const response = await fetch("/api/export", {
         method: "POST",
@@ -34,17 +35,19 @@ export function ExportButton({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      toast.success("Export complete", { id: toastId });
+      setPhase("done");
+      window.setTimeout(() => setPhase("idle"), 2200);
     } catch {
-      toast.error("Couldn't generate the Excel file. Please try again.");
-    } finally {
-      setLoading(false);
+      toast.error("Couldn't generate the Excel file. Please try again.", { id: toastId });
+      setPhase("idle");
     }
   }
 
   return (
-    <Button type="button" onClick={handleExport} disabled={loading}>
-      {loading ? <Loader2 className="animate-spin" /> : <Download />}
-      Export Excel
+    <Button type="button" onClick={handleExport} disabled={phase === "preparing"}>
+      {phase === "preparing" ? <Loader2 className="animate-spin" /> : phase === "done" ? <Check className="ll-pop" /> : <Download />}
+      {phase === "preparing" ? "Preparing…" : phase === "done" ? "Export complete" : "Export Excel"}
     </Button>
   );
 }

@@ -170,6 +170,29 @@ describe("POST /api/extract", () => {
   });
 });
 
+describe("POST /api/extract failure wording", () => {
+  async function failWith(code: ConstructorParameters<typeof ExtractionError>[0]) {
+    mockedExtractLead.mockRejectedValue(new ExtractionError(code, "INTERNAL-DETAIL-xyz"));
+    const formData = new FormData();
+    formData.append("files", await makePngFile("w.png", { r: 9, g: 8, b: 7 }));
+    const response = await POST(new Request("http://localhost/api/extract", { method: "POST", body: formData }));
+    const text = await response.text();
+    return { text, reason: parseSseEvents(text).find((e) => e.type === "done").records[0].failureReason as string };
+  }
+
+  it("explains an exhausted quota without blaming the user or leaking detail", async () => {
+    const { reason, text } = await failWith("quota_exceeded");
+    expect(reason).toBe(
+      "AI processing is temporarily unavailable because the inference quota has been reached. Please try again after the quota resets.",
+    );
+    expect(text).not.toContain("INTERNAL-DETAIL-xyz");
+  });
+
+  it("names Qwen3-VL when its reply is unreadable", async () => {
+    expect((await failWith("model_output")).reason).toBe("Qwen3-VL returned an incomplete or unreadable response.");
+  });
+});
+
 describe("POST /api/extract size guards", () => {
   it("rejects an oversized Content-Length with 413 before reading the body", async () => {
     const request = new Request("http://localhost/api/extract", {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Inbox } from "lucide-react";
+import { AlertTriangle, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/navbar";
 import { UploadZone } from "@/components/upload/upload-zone";
@@ -38,6 +38,7 @@ export default function LeadsPage() {
     retryingIds,
     importExcel,
     isImporting,
+    extractNow,
   } = useExtraction();
 
   /** Images go to extraction; an .xlsx is imported on its own (one at a time). */
@@ -93,7 +94,18 @@ export default function LeadsPage() {
   return (
     <>
       <Navbar />
-      <main className="flex w-full flex-1 flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8 xl:px-12">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex w-full flex-1 flex-col gap-5 px-4 py-6 focus:outline-none sm:px-6 sm:py-8 lg:px-8 xl:px-12"
+      >
+        <header>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">Lead workspace</h1>
+          <p className="text-sm text-muted-foreground">
+            Upload cards, let Qwen3-VL read them, then review, edit and export.
+          </p>
+        </header>
+
         {showUpload && (
           <>
             <UploadZone
@@ -105,22 +117,25 @@ export default function LeadsPage() {
               }
               disabled={isImporting}
             />
-            <SampleCards onAdd={addFiles} />
-            <FileList files={selected} onRemove={removeFile} />
+
             {selected.length > 0 && (
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={clearAll}>
-                  Clear All
-                </Button>
-                <Button
-                  type="button"
-                  onClick={startExtraction}
-                  disabled={readyFiles.length === 0}
-                >
-                  Extract Leads →
-                </Button>
+              <div className="space-y-4">
+                <FileList files={selected} onRemove={removeFile} onClear={clearAll} />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="h-11 w-full px-6 text-base sm:h-10 sm:w-auto sm:text-sm"
+                    onClick={startExtraction}
+                    disabled={readyFiles.length === 0}
+                  >
+                    Extract {readyFiles.length} {readyFiles.length === 1 ? "card" : "cards"} →
+                  </Button>
+                </div>
               </div>
             )}
+
+            <SampleCards onRun={(file) => void extractNow([file])} disabled={isImporting} />
           </>
         )}
 
@@ -129,7 +144,13 @@ export default function LeadsPage() {
         )}
 
         {error && !isProcessing && (
-          <p className="text-sm text-destructive">{error}</p>
+          <div role="alert" className="glass-card flex items-start gap-3 rounded-xl border-destructive/40 p-4 text-sm">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <div>
+              <p className="font-medium">Extraction could not finish</p>
+              <p className="text-muted-foreground">{error}</p>
+            </div>
+          </div>
         )}
 
         {records && summary && (
@@ -150,8 +171,9 @@ export default function LeadsPage() {
             ) : (
               <EmptyState
                 icon={Inbox}
-                title="No leads yet"
-                description="Upload business cards to begin extracting leads with AI."
+                title="Your lead workspace is empty."
+                description="Upload business cards to start building your lead database."
+                action={<Button onClick={clearAll}>Upload Cards</Button>}
               />
             )}
           </>

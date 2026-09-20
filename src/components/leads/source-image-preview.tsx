@@ -1,14 +1,8 @@
 import Image from "next/image";
-import { ImageOff } from "lucide-react";
 
 export function SourceImagePreview({ previewUrl }: { previewUrl?: string }) {
-  if (!previewUrl) {
-    return (
-      <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 text-muted-foreground">
-        <ImageOff className="size-6" />
-      </div>
-    );
-  }
+  // Imported or History rows have no source image; an empty placeholder box is just noise.
+  if (!previewUrl) return null;
 
   return (
     <div className="relative aspect-video overflow-hidden rounded-xl border border-border/60">

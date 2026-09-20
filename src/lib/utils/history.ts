@@ -69,14 +69,13 @@ export function aggregateStats(entries: BatchHistoryEntry[]) {
   return { ...totals, successRate };
 }
 
-/** "Today" / "Yesterday" / a short date, judged in the viewer's local time. */
+/** "Today" / "Yesterday" / "Earlier", judged in the viewer's local time. */
 export function dayLabel(iso: string, now: Date = new Date()): string {
-  const day = new Date(iso);
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diffDays = Math.round((startOf(now) - startOf(day)) / 86_400_000);
-  if (diffDays === 0) return "Today";
+  const diffDays = Math.round((startOf(now) - startOf(new Date(iso))) / 86_400_000);
+  if (diffDays <= 0) return "Today";
   if (diffDays === 1) return "Yesterday";
-  return day.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return "Earlier";
 }
 
 /** Groups entries (already newest-first) into consecutive day buckets. */

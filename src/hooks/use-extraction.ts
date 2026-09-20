@@ -149,8 +149,8 @@ export function useExtraction() {
     [selected],
   );
 
-  const startExtraction = useCallback(async () => {
-    if (readyFiles.length === 0) return;
+  const runBatch = useCallback(async (files: SelectedFile[]) => {
+    if (files.length === 0) return;
 
     setIsProcessing(true);
     setError(null);
@@ -160,10 +160,10 @@ export function useExtraction() {
     setSelected((prev) =>
       prev.map((f) => (f.reason ? f : { ...f, status: "processing" })),
     );
-    setProcessedFiles(readyFiles);
+    setProcessedFiles(files);
 
     const formData = new FormData();
-    readyFiles.forEach((f) => formData.append("files", f.file, f.file.name));
+    files.forEach((f) => formData.append("files", f.file, f.file.name));
 
     try {
       const response = await fetch("/api/extract", {
@@ -176,7 +176,7 @@ export function useExtraction() {
         throw new Error(body?.error ?? "Extraction request failed");
       }
 
-      const fileIndexToId = readyFiles.map((f) => f.id);
+      const fileIndexToId = files.map((f) => f.id);
       let sawDone = false;
 
       await readEvents(response, (event) => {
@@ -224,7 +224,25 @@ export function useExtraction() {
       );
       setIsProcessing(false);
     }
-  }, [readyFiles]);
+  }, []);
+
+  const startExtraction = useCallback(() => runBatch(readyFiles), [runBatch, readyFiles]);
+
+  /** Adds images and runs the AI on them immediately (used by "Try a sample"). */
+  const extractNow = useCallback(
+    (incoming: File[]) => {
+      const additions: SelectedFile[] = incoming.map((file) => ({
+        id: nanoid(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        status: "waiting" as CardStatus,
+        reason: validateClientSide(file).reason,
+      }));
+      setSelected((prev) => [...prev, ...additions]);
+      return runBatch([...readyFiles, ...additions.filter((f) => !f.reason)]);
+    },
+    [runBatch, readyFiles],
+  );
 
   const [isImporting, setIsImporting] = useState(false);
 
@@ -306,6 +324,7 @@ export function useExtraction() {
   );
 
   return {
+    extractNow,
     importExcel,
     isImporting,
     retryCard,

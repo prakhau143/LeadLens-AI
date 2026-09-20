@@ -1,15 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Circle,
-  Copy,
-  Loader2,
-  X,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Copy, Loader2, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SelectedFile } from "@/hooks/use-extraction";
 
@@ -21,17 +13,17 @@ function formatSize(bytes: number): string {
 
 /** Labels for the real server stages; "queued" = accepted but not started yet. */
 const STAGE_LABELS = {
-  queued: "Queued",
+  queued: "Waiting",
   preparing: "Preparing image…",
   reading: "Reading card…",
-  validating: "Validating result…",
+  validating: "Validating…",
 } as const;
 
 function StatusIndicator({ file }: { file: SelectedFile }) {
   if (file.reason) {
     return (
       <span className="flex items-center gap-1 text-xs text-destructive">
-        <XCircle className="size-3.5" /> {file.reason}
+        <XCircle className="size-3.5" aria-hidden /> {file.reason}
       </span>
     );
   }
@@ -39,37 +31,37 @@ function StatusIndicator({ file }: { file: SelectedFile }) {
     case "processing":
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> {STAGE_LABELS[file.stage ?? "queued"]}
+          <Loader2 className="size-3.5 animate-spin" aria-hidden /> {STAGE_LABELS[file.stage ?? "queued"]}
         </span>
       );
     case "extracted":
       return (
-        <span className="flex items-center gap-1 text-xs text-emerald-500">
-          <CheckCircle2 className="size-3.5" /> Extracted
+        <span className="flex items-center gap-1 text-xs text-success">
+          <CheckCircle2 className="size-3.5" aria-hidden /> Complete
         </span>
       );
     case "needs_review":
       return (
-        <span className="flex items-center gap-1 text-xs text-amber-500">
-          <AlertTriangle className="size-3.5" /> Needs review
+        <span className="flex items-center gap-1 text-xs text-warning">
+          <AlertTriangle className="size-3.5" aria-hidden /> Needs review
         </span>
       );
     case "failed":
       return (
         <span className="flex items-center gap-1 text-xs text-destructive">
-          <XCircle className="size-3.5" /> Failed
+          <XCircle className="size-3.5" aria-hidden /> Failed
         </span>
       );
     case "duplicate":
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Copy className="size-3.5" /> Duplicate
+          <Copy className="size-3.5" aria-hidden /> Duplicate
         </span>
       );
     default:
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Circle className="size-3.5" /> Ready
+          <Circle className="size-3.5" aria-hidden /> Ready
         </span>
       );
   }
@@ -78,48 +70,64 @@ function StatusIndicator({ file }: { file: SelectedFile }) {
 export function FileList({
   files,
   onRemove,
+  onClear,
   readOnly,
 }: {
   files: SelectedFile[];
   onRemove?: (id: string) => void;
+  onClear?: () => void;
   readOnly?: boolean;
 }) {
   if (files.length === 0) return null;
+  const totalBytes = files.reduce((sum, f) => sum + f.file.size, 0);
 
   return (
-    <div className="glass-card divide-y divide-border/60 rounded-xl">
-      {files.map((f) => (
-        <div key={f.id} className="flex items-center gap-3 px-3 py-2">
-          <div className="relative size-10 shrink-0 overflow-hidden rounded-md bg-muted">
-            <Image
-              src={f.previewUrl}
-              alt={f.file.name}
-              fill
-              sizes="40px"
-              className="object-cover"
-              unoptimized
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{f.file.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatSize(f.file.size)}
-            </p>
-          </div>
-          <StatusIndicator file={f} />
-          {!readOnly && onRemove && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Remove ${f.file.name}`}
-              onClick={() => onRemove(f.id)}
-            >
-              <X className="size-3.5" />
-            </Button>
-          )}
-        </div>
-      ))}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium" aria-live="polite">
+          {files.length} {files.length === 1 ? "card" : "cards"}
+          <span className="font-normal text-muted-foreground"> · {formatSize(totalBytes)} total</span>
+        </p>
+        {!readOnly && onClear && (
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+            Clear all
+          </Button>
+        )}
+      </div>
+
+      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {files.map((f) => (
+          <li key={f.id} className="glass-card ll-lift flex items-center gap-3 rounded-xl p-2.5">
+            <div className="relative h-12 w-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-muted">
+              <Image
+                src={f.previewUrl}
+                alt={`Preview of ${f.file.name}`}
+                fill
+                sizes="72px"
+                className="object-cover"
+                unoptimized
+              />
+              {f.status === "processing" && f.stage === "reading" && <span className="ll-scan" aria-hidden />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={f.file.name}>{f.file.name}</p>
+              <p className="text-xs text-muted-foreground">{formatSize(f.file.size)}</p>
+              <StatusIndicator file={f} />
+            </div>
+            {!readOnly && onRemove && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove ${f.file.name}`}
+                onClick={() => onRemove(f.id)}
+              >
+                <X />
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

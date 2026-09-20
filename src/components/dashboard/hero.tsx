@@ -1,46 +1,42 @@
 import Link from "next/link";
-import { ArrowRight, Check, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const FLOW = ["Upload cards", "AI extracts", "Review", "Export"];
-const POINTS = ["7-field extraction", "AI-powered vision", "Excel export"];
+const POINTS = ["Vision AI", "7-field extraction", "Excel export"];
 
 export function Hero() {
   return (
-    <section className="glass-card hero-backdrop rounded-3xl px-6 py-16 sm:px-12 sm:py-24">
+    <section className="glass-card rounded-3xl px-5 py-10 sm:px-10 sm:py-14">
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <span className="ll-fade-up mb-6 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-3.5 py-1 text-[11px] font-semibold tracking-[0.14em] uppercase backdrop-blur">
-          <Sparkles className="size-3.5 text-brand" />
+        <span className="ll-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/50 px-3.5 py-1 text-[11px] font-semibold tracking-[0.14em] uppercase backdrop-blur">
+          <Sparkles className="size-3.5 text-brand" aria-hidden />
           Qwen3-VL Powered
         </span>
 
         <h1
-          className="ll-fade-up font-heading text-4xl font-semibold tracking-tight text-balance sm:text-6xl"
-          style={{ animationDelay: "80ms" }}
+          className="ll-fade-up font-heading text-[2rem] leading-[1.08] font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.4rem]"
+          style={{ animationDelay: "70ms" }}
         >
           Turn business cards
           <br />
-          <span className="text-brand">into structured leads.</span>
+          <span className="bg-gradient-to-r from-brand to-brand-2 bg-clip-text text-transparent">
+            into structured leads.
+          </span>
         </h1>
 
-        <ol
-          aria-label="How it works"
-          className="ll-fade-up mt-6 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 text-sm text-muted-foreground"
-          style={{ animationDelay: "160ms" }}
+        <p
+          className="ll-fade-up mt-4 max-w-xl text-base text-balance text-muted-foreground sm:text-lg"
+          style={{ animationDelay: "140ms" }}
         >
-          {FLOW.map((step, i) => (
-            <li key={step} className="flex items-center gap-1">
-              <span className={i === 1 ? "font-medium text-foreground" : undefined}>{step}</span>
-              {i < FLOW.length - 1 && <ChevronRight className="size-3.5 opacity-60" aria-hidden />}
-            </li>
-          ))}
-        </ol>
+          Upload business cards. AI extracts the details. Review, edit and export your leads in
+          seconds.
+        </p>
 
         <div
-          className="ll-fade-up mt-9 flex flex-col items-center gap-3 sm:flex-row"
-          style={{ animationDelay: "240ms" }}
+          className="ll-fade-up mt-7 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center"
+          style={{ animationDelay: "210ms" }}
         >
-          <Button render={<Link href="/leads" />} nativeButton={false} size="lg">
+          <Button render={<Link href="/leads" />} nativeButton={false} size="lg" className="h-11 px-5 text-base sm:h-10">
             Upload Cards
             <ArrowRight />
           </Button>
@@ -49,18 +45,19 @@ export function Hero() {
             nativeButton={false}
             size="lg"
             variant="outline"
+            className="h-11 px-5 text-base sm:h-10"
           >
             Try a Sample
           </Button>
         </div>
 
         <ul
-          className="ll-fade-up mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground"
-          style={{ animationDelay: "320ms" }}
+          className="ll-fade-up mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground"
+          style={{ animationDelay: "280ms" }}
         >
           {POINTS.map((point) => (
             <li key={point} className="flex items-center gap-1.5">
-              <Check className="size-4 text-emerald-500" aria-hidden />
+              <Check className="size-4 text-success" aria-hidden />
               {point}
             </li>
           ))}
